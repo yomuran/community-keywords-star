@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>3D Scanning 社区关键词关联星图</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --panel: #171a22;
+      --text: #e6e8ef;
+      --muted: #9aa3b2;
+      --line: #2a3140;
+      --accent: #4c8dff;
+      --reddit: #46d17a;
+      --youtube: #ff6b6b;
+      --both: #e6b450;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    h1 { font-size: 22px; margin: 0 0 8px; font-weight: 600; }
+    .sub { color: var(--muted); font-size: 14px; margin-bottom: 16px; }
+    .badges { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    .badge {
+      font-size: 12px; padding: 4px 10px; border-radius: 999px;
+      background: var(--panel); border: 1px solid var(--line); color: var(--muted);
+    }
+    .badge.accent { color: var(--accent); border-color: #355ea8; }
+    .layout { display: grid; grid-template-columns: 1fr 300px; gap: 16px; align-items: start; }
+    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+    .chart {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    svg { display: block; width: 100%; height: auto; }
+    .edge { stroke: var(--line); opacity: 0.35; }
+    .edge.active { stroke: var(--accent); opacity: 0.85; }
+    .node { cursor: pointer; }
+    .node circle { stroke: var(--line); stroke-width: 1; transition: stroke-width .12s, opacity .12s; }
+    .node.center circle { stroke: var(--accent); stroke-width: 2; fill: #2a4a8a; }
+    .node.active circle { stroke: var(--accent); stroke-width: 2; }
+    .node.dim { opacity: 0.28; }
+    .node text { fill: var(--muted); font-size: 9px; text-anchor: middle; pointer-events: none; }
+    .node.active text, .node.center text { fill: var(--text); font-weight: 600; }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px 16px;
+      min-height: 420px;
+    }
+    .panel h2 { font-size: 16px; margin: 0 0 10px; word-break: break-word; }
+    .panel .heat { color: var(--muted); font-size: 13px; margin-bottom: 10px; }
+    .platforms { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+    .pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
+    .pill.reddit { color: var(--reddit); }
+    .pill.youtube { color: var(--youtube); }
+    .titles { margin: 0 0 12px; padding-left: 16px; color: var(--muted); font-size: 12px; }
+    .titles li { margin-bottom: 6px; }
+    .links { display: flex; flex-direction: column; gap: 8px; }
+    .links a {
+      color: var(--accent); font-size: 12px; text-decoration: none; word-break: break-all;
+      border-bottom: 1px solid transparent;
+    }
+    .links a:hover { border-bottom-color: var(--accent); }
+    .hint { color: var(--muted); font-size: 13px; }
+    .foot { margin-top: 12px; color: var(--muted); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="badges">
+      <span class="badge accent">关键词星图</span>
+      <span class="badge">38 节点</span>
+      <span class="badge">65 共现边</span>
+      <span class="badge">since 2025-07-01</span>
+    </div>
+    <h1>3D Scanning 社区 · 关键词关联星图</h1>
+    <p class="sub">同一帖/视频标题中共现的关键词相连。节点大小 = 热度（views + 2×comments）；无 metrics 计 1，不编造。悬停节点查看来源链接。</p>
+    <div class="layout">
+      <div class="chart">
+        <svg id="star" viewBox="0 0 800 560" aria-label="keyword star map"></svg>
+        <p class="foot" style="padding: 0 12px 12px;">来源：community_keywords/data/accumulated/raw_items.tsv · 675 条去重内容</p>
+      </div>
+      <aside class="panel" id="panel">
+        <h2 id="kw-title">悬停关键词</h2>
+        <div class="platforms" id="kw-platforms"></div>
+        <div class="heat" id="kw-heat"></div>
+        <ul class="titles" id="kw-titles"></ul>
+        <div class="links" id="kw-links"></div>
+        <p class="hint" id="kw-hint">将鼠标移到左侧节点上，查看共现邻居（高亮连线）与 Reddit/YouTube 原文链接。</p>
+      </aside>
+    </div>
+  </div>
+  <script>
+    const NETWORK = {"nodes": [{"id": "lidar", "x": 400, "y": 280, "r": 28, "heat": 12172481, "urls": ["https://www.reddit.com/r/LiDAR/comments/1ukdggv/how_are_people_getting_rs232_gnssimu_data_off_the/", "https://www.reddit.com/r/LiDAR/comments/1uk21xp/requesting_help_of_lidar_experts/", "https://www.reddit.com/r/LiDAR/comments/1tvp3sv/coherent_bluegreen_subsea_lidar/", "https://www.youtube.com/watch?v=9jTCKewoPTI"], "titles": ["How are people getting RS-232 GNSS/IMU data off the vehicle in a mobile LiDAR rig?", "Requesting help of LiDAR experts!"], "platforms": ["reddit", "youtube"], "isCenter": true}, {"id": "iphone", "x": 535.1, "y": 303.2, "r": 24.7, "heat": 11213011, "urls": ["https://www.youtube.com/watch?v=9jTCKewoPTI", "https://www.youtube.com/watch?v=wyhDffq1_SA", "https://www.youtube.com/watch?v=Lq2-lZ5xqu8", "https://www.youtube.com/watch?v=TeIi0BsR1Qs"], "titles": ["Best LiDAR 3D Scanner For iPhone In 2025 | Comparing Top LiDAR Apps | Introducing KIRI Engine V3.14", "iPhone 16 Pro: There's Another Exciting Thing Other Than AI | Free 3D Scan For All"], "platforms": ["youtube"], "isCenter": false}, {"id": "scanner", "x": 535.5, "y": 327.9, "r": 23.6, "heat": 10320742, "urls": ["https://www.youtube.com/watch?v=dGJ_XD-fCsI", "https://www.reddit.com/r/3DScanning/comments/1uklipy/help_me_pick_scanner/", "https://www.reddit.com/r/3DScanning/comments/1ukdx7z/test_a_demo_h1_pro_3d_scanner_from_voxmeta3d/", "https://www.youtube.com/watch?v=ex1v_s09kLE"], "titles": ["Photogrammetry vs. \"Real\" 3D Scanner", "Help me pick scanner"], "platforms": ["reddit", "youtube"], "isCenter": false}, {"id": "scanning", "x": 539.4, "y": 357.9, "r": 20.7, "heat": 8161575, "urls": ["https://www.youtube.com/watch?v=1D0EhSi-vvc", "https://www.youtube.com/watch?v=Gl-iY0sP2yg", "https://www.reddit.com/r/3DScanning/comments/1ukyb5i/no_laptop_today_so_i_improvised_and_used_my_phone/", "https://www.reddit.com/r/3DScanning/comments/1ukrv77/markerless_3d_scanning_on_a_budget/"], "titles": ["Photogrammetry 2 – 3D scanning with just PHONE/CAMERA simpler, better than ever!", "Photogrammetry: 3D Scan with Any Camera | 3D Scanning Series"], "platforms": ["reddit", "youtube"], "isCenter": false}, {"id": "lidar scanner", "x": 537.2, "y": 390.8, "r": 17.8, "heat": 5910745, "urls": ["https://www.youtube.com/watch?v=9jTCKewoPTI", "https://www.youtube.com/watch?v=7pjAa4SBIpk", "https://www.youtube.com/watch?v=hABd9SJcbTg", "https://www.youtube.com/watch?v=sGI6oW5Kw04"], "titles": ["Best LiDAR 3D Scanner For iPhone In 2025 | Comparing Top LiDAR Apps | Introducing KIRI Engine V3.14", "Room Scanner LiDAR 3D Scanner App | Floor Plan Tutorial | Measure Square"], "platforms": ["youtube"], "isCenter": false}, {"id": "photogrammetry", "x": 269.2, "y": 405.3, "r": 16.9, "heat": 5259793, "urls": ["https://www.youtube.com/watch?v=1D0EhSi-vvc", "https://www.youtube.com/watch?v=dGJ_XD-fCsI", "https://www.youtube.com/watch?v=Gl-iY0sP2yg", "https://www.youtube.com/watch?v=ZQ1UgIeYtNU"], "titles": ["Photogrammetry 2 – 3D scanning with just PHONE/CAMERA simpler, better than ever!", "Photogrammetry vs. \"Real\" 3D Scanner"], "platforms": ["youtube"], "isCenter": false}, {"id": "scanner iphone", "x": 249.6, "y": 381.6, "r": 16.8, "heat": 5206641, "urls": ["https://www.youtube.com/watch?v=9jTCKewoPTI", "https://www.youtube.com/watch?v=WFMKmOlj0Nc", "https://www.youtube.com/watch?v=1Hy0hBHdcPc", "https://www.youtube.com/watch?v=D5-0Youeb5E"], "titles": ["Best LiDAR 3D Scanner For iPhone In 2025 | Comparing Top LiDAR Apps | Introducing KIRI Engine V3.14", "Pro 3D Scanner vs iPhone: Porsche Wheel 3D Scanning"], "platforms": ["youtube"], "isCenter": false}, {"id": "scans", "x": 233.5, "y": 355.3, "r": 16.6, "heat": 5035082, "urls": ["https://www.youtube.com/watch?v=CQPsJSKHykE", "https://www.youtube.com/watch?v=kHtHl3lB_ZM", "https://www.youtube.com/watch?v=O44f5xs_OcE", "https://www.youtube.com/watch?v=bataD5sfyJQ"], "titles": ["How to Optimize Polycam 3D Scans in Blender — Mesh Cleanup, Textures & Rendering Tutorial | Polycam", "How to Georeference Polycam Scans with Ground Control Points in CloudCompare | Polycam"], "platforms": ["youtube"], "isCenter": false}, {"id": "pro", "x": 521.7, "y": 418.3, "r": 16.4, "heat": 4835983, "urls": ["https://www.reddit.com/r/3DScanning/comments/1ukdx7z/test_a_demo_h1_pro_3d_scanner_from_voxmeta3d/", "https://www.youtube.com/watch?v=wyhDffq1_SA", "https://www.youtube.com/watch?v=j3ZYXRME_hw", "https://www.youtube.com/watch?v=IXGAx12DewM"], "titles": ["Test a Demo H1 Pro 3D scanner from VoxMeta3D", "iPhone 16 Pro: There's Another Exciting Thing Other Than AI | Free 3D Scan For All"], "platforms": ["reddit", "youtube"], "isCenter": false}, {"id": "iphone scans", "x": 220.9, "y": 326.6, "r": 16.2, "heat": 4722215, "urls": ["https://www.youtube.com/watch?v=KYXIIB_JlYU"], "titles": ["LiDAR Scanner iPhone 12 demo - Instant 3d scans!"], "platforms": ["youtube"], "isCenter": false}, {"id": "iphone pro", "x": 500.9, "y": 443.9, "r": 14.9, "heat": 3717503, "urls": ["https://www.youtube.com/watch?v=wyhDffq1_SA", "https://www.youtube.com/watch?v=yMS1XD8jAkQ", "https://www.youtube.com/watch?v=KaB8dBID0Ss", "https://www.youtube.com/watch?v=qd-Jy0pHSr4"], "titles": ["iPhone 16 Pro: There's Another Exciting Thing Other Than AI | Free 3D Scan For All", "LiDAR 3D scanning with the 2020 iPad Pro, iPhone 12 Pro Max and the Polycam 3D scanning app"], "platforms": ["youtube"], "isCenter": false}, {"id": "camera", "x": 201.8, "y": 296.9, "r": 13.8, "heat": 2853494, "urls": ["https://www.youtube.com/watch?v=1D0EhSi-vvc", "https://www.youtube.com/watch?v=Gl-iY0sP2yg", "https://www.youtube.com/shorts/ROUigWk2s-4", "https://www.youtube.com/shorts/tYX2Izyp2Cc"], "titles": ["Photogrammetry 2 – 3D scanning with just PHONE/CAMERA simpler, better than ever!", "Photogrammetry: 3D Scan with Any Camera | 3D Scanning Series"], "platforms": ["youtube"], "isCenter": false}, {"id": "phone", "x": 201.0, "y": 263.1, "r": 13.6, "heat": 2742578, "urls": ["https://www.youtube.com/watch?v=l5vWKKCWSfA", "https://www.youtube.com/watch?v=y4kLBBrQDJ0", "https://www.youtube.com/watch?v=1D0EhSi-vvc", "https://www.reddit.com/r/3DScanning/comments/1ukyb5i/no_laptop_today_so_i_improvised_and_used_my_phone/"], "titles": ["Turn Gaussian Splatting To Mesh Just Got Better On Phone | Introducing KIRI Engine 4.2", "CEO VS Intern: How To Make Full-Body 3D Scan Using Phone | Gaussian Splatting Tricks"], "platforms": ["reddit", "youtube"], "isCenter": false}, {"id": "cgi", "x": 205.7, "y": 229.4, "r": 13.4, "heat": 2593699, "urls": ["https://www.reddit.com/r/blender/comments/1ub1ps5/cgi_burning_house_vfx_walkthrough_in_blender_3d/", "https://www.youtube.com/watch?v=X8yRlA7jqEQ"], "titles": ["CGI Burning House: VFX Walkthrough in Blender 3d", "THIS is the Biggest Thing Since CGI"], "platforms": ["reddit", "youtube"], "isCenter": false}, {"id": "luma", "x": 216.7, "y": 197.1, "r": 13.3, "heat": 2548598, "urls": ["https://www.youtube.com/watch?v=wnEM0ZHR_2U", "https://www.youtube.com/watch?v=5lA_fl6wzeY", "https://www.youtube.com/watch?v=hRvdid2qRG8", "https://www.youtube.com/watch?v=QMTjGda0oiw"], "titles": ["We Just Made Mobile 3D Scan Free! | KIRI CEO Reviews Luma, Scaniverse, and KIRI Engine", "Luma Skills Demo: Reusable AI Creative Workflows"], "platforms": ["youtube"], "isCenter": false}, {"id": "pro lidar", "x": 475.1, "y": 466.8, "r": 13.3, "heat": 2520633, "urls": ["https://www.youtube.com/watch?v=qd-Jy0pHSr4", "https://www.youtube.com/watch?v=wbD2dvFZ-8g", "https://www.youtube.com/watch?v=r26OhSxBUXM", "https://www.youtube.com/watch?v=dt8khUv_lL0"], "titles": ["iPhone 12 Pro LiDAR vs Photogrammetry: 2 Different Ways to 3D Scan Anything!", "iPhone 15 Pro Max VS iPhone 12 Pro: LiDAR Scanning Test:  Accuracy, Measurements & Comparisons"], "platforms": ["youtube"], "isCenter": false}, {"id": "agents", "x": 233.0, "y": 167.2, "r": 13.3, "heat": 2500006, "urls": ["https://www.youtube.com/watch?v=uBvh6XQOLQo", "https://www.youtube.com/watch?v=BGi0gTJ8U8I", "https://www.youtube.com/shorts/xKYHvD7XKdU", "https://www.youtube.com/watch?v=p59rcSJ3n8A"], "titles": ["Behind the Scenes - Introducing Luma Agents", "Mazda's First AI-Produced Commercial | Luma Agents"], "platforms": ["youtube"], "isCenter": false}, {"id": "luma agents", "x": 254.5, "y": 140.6, "r": 13.3, "heat": 2500006, "urls": ["https://www.youtube.com/watch?v=uBvh6XQOLQo", "https://www.youtube.com/watch?v=BGi0gTJ8U8I", "https://www.youtube.com/shorts/xKYHvD7XKdU", "https://www.youtube.com/watch?v=p59rcSJ3n8A"], "titles": ["Behind the Scenes - Introducing Luma Agents", "Mazda's First AI-Produced Commercial | Luma Agents"], "platforms": ["youtube"], "isCenter": false}, {"id": "gaussian", "x": 280.0, "y": 117.7, "r": 13.2, "heat": 2451059, "urls": ["https://www.youtube.com/watch?v=rxXk9JicLe8", "https://www.youtube.com/watch?v=l5vWKKCWSfA", "https://www.youtube.com/watch?v=y4kLBBrQDJ0", "https://www.reddit.com/r/photogrammetry/comments/1uktcta/scaniverse_splatyourworld_global_gaussian_splat/"], "titles": ["Introducing KIRI Engine 4.2, Turning Gaussian Splatting Into Mesh Just Got Way Better", "Turn Gaussian Splatting To Mesh Just Got Better On Phone | Introducing KIRI Engine 4.2"], "platforms": ["reddit", "youtube"], "isCenter": false}, {"id": "photogrammetry scanning", "x": 308.9, "y": 99.3, "r": 13.1, "heat": 2382339, "urls": ["https://www.youtube.com/watch?v=1D0EhSi-vvc", "https://www.youtube.com/watch?v=icJYPpY75kU", "https://www.youtube.com/watch?v=45D0pFdqVgw"], "titles": ["Photogrammetry 2 – 3D scanning with just PHONE/CAMERA simpler, better than ever!", "Polycam Photo Mode — Free Photogrammetry 3D Scanning on Any iPhone"], "platforms": ["youtube"], "isCenter": false}, {"id": "scanning phone", "x": 340.7, "y": 86.3, "r": 13.1, "heat": 2355932, "urls": ["https://www.youtube.com/watch?v=1D0EhSi-vvc", "https://www.youtube.com/watch?v=axdPIc6FqQU"], "titles": ["Photogrammetry 2 – 3D scanning with just PHONE/CAMERA simpler, better than ever!", "3D Scanning for FREE with your phone"], "platforms": ["youtube"], "isCenter": false}, {"id": "scan", "x": 442.9, "y": 479.0, "r": 12.9, "heat": 2227015, "urls": ["https://www.youtube.com/watch?v=y4kLBBrQDJ0", "https://www.youtube.com/watch?v=9t8D3OBDR1U", "https://www.youtube.com/watch?v=wGlZyOgNv78", "https://www.youtube.com/watch?v=Gl-iY0sP2yg"], "titles": ["CEO VS Intern: How To Make Full-Body 3D Scan Using Phone | Gaussian Splatting Tricks", "How to Build a Digital Twin from One Scan (3D Model, Floor Plan, Spatial Data) | Polycam"], "platforms": ["youtube"], "isCenter": false}, {"id": "splatting", "x": 374.1, "y": 78.0, "r": 12.9, "heat": 2213011, "urls": ["https://www.youtube.com/watch?v=rxXk9JicLe8", "https://www.youtube.com/watch?v=l5vWKKCWSfA", "https://www.youtube.com/watch?v=y4kLBBrQDJ0", "https://www.youtube.com/watch?v=qI7X1l3Ox-Q"], "titles": ["Introducing KIRI Engine 4.2, Turning Gaussian Splatting Into Mesh Just Got Way Better", "Turn Gaussian Splatting To Mesh Just Got Better On Phone | Introducing KIRI Engine 4.2"], "platforms": ["youtube"], "isCenter": false}, {"id": "gaussian splatting", "x": 408.6, "y": 76.5, "r": 12.9, "heat": 2213011, "urls": ["https://www.youtube.com/watch?v=rxXk9JicLe8", "https://www.youtube.com/watch?v=l5vWKKCWSfA", "https://www.youtube.com/watch?v=y4kLBBrQDJ0", "https://www.youtube.com/watch?v=qI7X1l3Ox-Q"], "titles": ["Introducing KIRI Engine 4.2, Turning Gaussian Splatting Into Mesh Just Got Way Better", "Turn Gaussian Splatting To Mesh Just Got Better On Phone | Introducing KIRI Engine 4.2"], "platforms": ["youtube"], "isCenter": false}, {"id": "apps", "x": 408.7, "y": 485.3, "r": 12.6, "heat": 1966047, "urls": ["https://www.reddit.com/r/LiDAR/comments/1tozsv2/apps_for_measuring/", "https://www.youtube.com/watch?v=9jTCKewoPTI", "https://www.youtube.com/watch?v=fhLEaMaD_XA", "https://www.youtube.com/watch?v=rvf1GbKIIVY"], "titles": ["Apps for measuring?", "Best LiDAR 3D Scanner For iPhone In 2025 | Comparing Top LiDAR Apps | Introducing KIRI Engine V3.14"], "platforms": ["reddit", "youtube"], "isCenter": false}, {"id": "apple", "x": 443.4, "y": 78.8, "r": 12.5, "heat": 1915138, "urls": ["https://www.youtube.com/watch?v=IXGAx12DewM", "https://www.youtube.com/watch?v=FOxxqVzDaaA", "https://www.youtube.com/watch?v=fS3J4V_BgP0", "https://www.youtube.com/watch?v=as9MImh7hUM"], "titles": ["Polycam on Apple Vision Pro — Browse 3D Scans in Spatial Computing", "What is LiDAR? (& Why is It on Apple Devices All of a Sudden)"], "platforms": ["youtube"], "isCenter": false}, {"id": "simpler", "x": 477.6, "y": 87.0, "r": 12.1, "heat": 1621977, "urls": ["https://www.youtube.com/watch?v=1D0EhSi-vvc"], "titles": ["Photogrammetry 2 – 3D scanning with just PHONE/CAMERA simpler, better than ever!"], "platforms": ["youtube"], "isCenter": false}, {"id": "phone camera", "x": 509.1, "y": 102.9, "r": 12.1, "heat": 1621977, "urls": ["https://www.youtube.com/watch?v=1D0EhSi-vvc"], "titles": ["Photogrammetry 2 – 3D scanning with just PHONE/CAMERA simpler, better than ever!"], "platforms": ["youtube"], "isCenter": false}, {"id": "camera simpler", "x": 537.4, "y": 123.9, "r": 12.1, "heat": 1621977, "urls": ["https://www.youtube.com/watch?v=1D0EhSi-vvc"], "titles": ["Photogrammetry 2 – 3D scanning with just PHONE/CAMERA simpler, better than ever!"], "platforms": ["youtube"], "isCenter": false}, {"id": "ipad", "x": 562.3, "y": 149.0, "r": 12.0, "heat": 1542006, "urls": ["https://www.youtube.com/watch?v=yMS1XD8jAkQ", "https://www.youtube.com/watch?v=UzLzLQQJC30", "https://www.youtube.com/watch?v=NgBrno_27rM", "https://www.youtube.com/watch?v=sLtwYSCbNoc"], "titles": ["LiDAR 3D scanning with the 2020 iPad Pro, iPhone 12 Pro Max and the Polycam 3D scanning app", "How to Use LiDAR on iPhone & iPad -- What Can It Do?"], "platforms": ["youtube"], "isCenter": false}, {"id": "tutorial", "x": 582.6, "y": 178.0, "r": 11.9, "heat": 1461546, "urls": ["https://www.youtube.com/watch?v=96Iz2EDC6Yk", "https://www.youtube.com/watch?v=CQPsJSKHykE", "https://www.youtube.com/watch?v=O44f5xs_OcE", "https://www.youtube.com/watch?v=tqeBQrkTLME"], "titles": ["How to Create a Floor Plan with Your iPhone Using Polycam | Full Tutorial", "How to Optimize Polycam 3D Scans in Blender — Mesh Cleanup, Textures & Rendering Tutorial | Polycam"], "platforms": ["youtube"], "isCenter": false}, {"id": "max", "x": 373.4, "y": 487.9, "r": 11.9, "heat": 1408893, "urls": ["https://www.youtube.com/watch?v=yMS1XD8jAkQ", "https://www.youtube.com/watch?v=KaB8dBID0Ss", "https://www.youtube.com/watch?v=wbD2dvFZ-8g", "https://www.youtube.com/watch?v=-t_Sqx-BwwQ"], "titles": ["LiDAR 3D scanning with the 2020 iPad Pro, iPhone 12 Pro Max and the Polycam 3D scanning app", "Polycam scans & crops -- LiDAR scanning with iPhone 12 Pro Max"], "platforms": ["youtube"], "isCenter": false}, {"id": "pro max", "x": 338.6, "y": 480.4, "r": 11.9, "heat": 1408893, "urls": ["https://www.youtube.com/watch?v=yMS1XD8jAkQ", "https://www.youtube.com/watch?v=KaB8dBID0Ss", "https://www.youtube.com/watch?v=wbD2dvFZ-8g", "https://www.youtube.com/watch?v=-t_Sqx-BwwQ"], "titles": ["LiDAR 3D scanning with the 2020 iPad Pro, iPhone 12 Pro Max and the Polycam 3D scanning app", "Polycam scans & crops -- LiDAR scanning with iPhone 12 Pro Max"], "platforms": ["youtube"], "isCenter": false}, {"id": "models", "x": 598.0, "y": 210.0, "r": 11.8, "heat": 1346312, "urls": ["https://www.reddit.com/r/photogrammetry/comments/1ukx21d/rigzer_just_went_live_new_interactive_social/", "https://www.youtube.com/watch?v=r1KZspTrll4", "https://www.youtube.com/watch?v=GPYspn3RQMA", "https://www.youtube.com/watch?v=J3_5X1wqSy8"], "titles": ["Rigzer Just Went Live! New Interactive Social Platform – Embed 3D Models, Run Cloud Game Demos in Po", "Animate 3D Models Is EASY With This 3D Scanner App | Introducing KIRI Engine 3.9"], "platforms": ["reddit", "youtube"], "isCenter": false}, {"id": "easy", "x": 607.9, "y": 244.4, "r": 11.6, "heat": 1232102, "urls": ["https://www.youtube.com/watch?v=r1KZspTrll4", "https://www.youtube.com/watch?v=BBJpCYfZe84", "https://www.youtube.com/watch?v=dwRMK9LzBBc", "https://www.youtube.com/watch?v=6VjA9EfkFSc"], "titles": ["Animate 3D Models Is EASY With This 3D Scanner App | Introducing KIRI Engine 3.9", "3D Scan to After Effect is EASY and FREE, We Made This Video to Show You How"], "platforms": ["youtube"], "isCenter": false}, {"id": "try", "x": 611.0, "y": 280.0, "r": 11.6, "heat": 1216667, "urls": ["https://www.youtube.com/shorts/BoM25iSp_V4", "https://www.youtube.com/watch?v=IOiQwhGSrJc", "https://www.youtube.com/watch?v=fS3J4V_BgP0"], "titles": ["Ray3 Modify is now available. Your vision. Your performance, reimagined. Try now with Dream Machine.", "Your 3D Scans Suck? Try this! (feat. Creality Raptor)"], "platforms": ["youtube"], "isCenter": false}, {"id": "sensor", "x": 305.0, "y": 468.5, "r": 11.6, "heat": 1207471, "urls": ["https://www.youtube.com/watch?v=r26OhSxBUXM", "https://www.youtube.com/watch?v=-t_Sqx-BwwQ", "https://www.youtube.com/watch?v=72IALhoVy1A", "https://www.youtube.com/watch?v=XjU5s5PxzXs"], "titles": ["iPhone 12 Pro LIDAR Sensor - INCREDIBLE FAST 3D Scanner!", "iPhone 17 Pro / 17 Pro Max: How to Use Lidar Sensor"], "platforms": ["youtube"], "isCenter": false}, {"id": "lidar sensor", "x": 274.5, "y": 449.7, "r": 11.6, "heat": 1207471, "urls": ["https://www.youtube.com/watch?v=r26OhSxBUXM", "https://www.youtube.com/watch?v=-t_Sqx-BwwQ", "https://www.youtube.com/watch?v=72IALhoVy1A", "https://www.youtube.com/watch?v=XjU5s5PxzXs"], "titles": ["iPhone 12 Pro LIDAR Sensor - INCREDIBLE FAST 3D Scanner!", "iPhone 17 Pro / 17 Pro Max: How to Use Lidar Sensor"], "platforms": ["youtube"], "isCenter": false}], "edges": [{"source": "gaussian", "target": "splatting", "weight": 54}, {"source": "gaussian", "target": "gaussian splatting", "weight": 54}, {"source": "gaussian splatting", "target": "splatting", "weight": 54}, {"source": "iphone", "target": "lidar", "weight": 36}, {"source": "iphone", "target": "pro", "weight": 23}, {"source": "iphone", "target": "iphone pro", "weight": 21}, {"source": "iphone pro", "target": "pro", "weight": 21}, {"source": "lidar", "target": "pro", "weight": 21}, {"source": "iphone pro", "target": "lidar", "weight": 20}, {"source": "iphone", "target": "scanning", "weight": 13}, {"source": "pro", "target": "pro lidar", "weight": 13}, {"source": "lidar", "target": "pro lidar", "weight": 13}, {"source": "photogrammetry", "target": "scan", "weight": 12}, {"source": "lidar", "target": "scanner", "weight": 12}, {"source": "iphone", "target": "pro lidar", "weight": 12}, {"source": "iphone pro", "target": "pro lidar", "weight": 12}, {"source": "iphone", "target": "scanner", "weight": 11}, {"source": "scan", "target": "tutorial", "weight": 11}, {"source": "gaussian", "target": "scan", "weight": 10}, {"source": "scans", "target": "tutorial", "weight": 10}, {"source": "lidar", "target": "scanning", "weight": 10}, {"source": "scan", "target": "splatting", "weight": 9}, {"source": "gaussian splatting", "target": "scan", "weight": 9}, {"source": "pro", "target": "scanner", "weight": 9}, {"source": "iphone", "target": "scan", "weight": 9}, {"source": "lidar", "target": "max", "weight": 8}, {"source": "lidar", "target": "pro max", "weight": 8}, {"source": "max", "target": "pro", "weight": 8}, {"source": "pro", "target": "pro max", "weight": 8}, {"source": "iphone", "target": "max", "weight": 8}, {"source": "iphone", "target": "pro max", "weight": 8}, {"source": "iphone pro", "target": "max", "weight": 8}, {"source": "max", "target": "pro max", "weight": 8}, {"source": "iphone pro", "target": "pro max", "weight": 8}, {"source": "photogrammetry", "target": "scanning", "weight": 7}, {"source": "lidar", "target": "lidar scanner", "weight": 7}, {"source": "lidar scanner", "target": "scanner", "weight": 7}, {"source": "agents", "target": "luma", "weight": 7}, {"source": "luma", "target": "luma agents", "weight": 7}, {"source": "agents", "target": "luma agents", "weight": 7}, {"source": "iphone", "target": "sensor", "weight": 7}, {"source": "iphone", "target": "lidar sensor", "weight": 7}, {"source": "lidar", "target": "sensor", "weight": 7}, {"source": "lidar", "target": "lidar sensor", "weight": 7}, {"source": "lidar sensor", "target": "sensor", "weight": 7}, {"source": "photogrammetry", "target": "scanner", "weight": 6}, {"source": "gaussian", "target": "tutorial", "weight": 6}, {"source": "photogrammetry", "target": "tutorial", "weight": 6}, {"source": "lidar", "target": "scan", "weight": 6}, {"source": "pro", "target": "scanning", "weight": 6}, {"source": "scanner", "target": "scanning", "weight": 6}, {"source": "pro", "target": "sensor", "weight": 6}, {"source": "lidar sensor", "target": "pro", "weight": 6}, {"source": "iphone pro", "target": "sensor", "weight": 6}, {"source": "iphone pro", "target": "lidar sensor", "weight": 6}, {"source": "apps", "target": "lidar", "weight": 5}, {"source": "scanner", "target": "scanner iphone", "weight": 5}, {"source": "iphone", "target": "scanner iphone", "weight": 5}, {"source": "gaussian", "target": "photogrammetry", "weight": 5}, {"source": "photogrammetry", "target": "splatting", "weight": 5}, {"source": "gaussian splatting", "target": "photogrammetry", "weight": 5}, {"source": "iphone pro", "target": "scanning", "weight": 5}, {"source": "iphone pro", "target": "scanner", "weight": 5}, {"source": "pro lidar", "target": "scanner", "weight": 5}, {"source": "phone", "target": "scanning", "weight": 4}], "meta": {"source": "data/accumulated/raw_items.tsv", "since": "2025-07-01", "generated": "2026-07-02", "rawCount": 675}};
+
+    const svg = document.getElementById('star');
+    const byId = Object.fromEntries(NETWORK.nodes.map(n => [n.id, n]));
+    const maxW = Math.max(...NETWORK.edges.map(e => e.weight));
+    let hovered = null;
+
+    function fmtHeat(n) {
+      if (n >= 1e6) return (n/1e6).toFixed(1) + 'M';
+      if (n >= 1e3) return (n/1e3).toFixed(1) + 'K';
+      return String(n);
+    }
+
+    function renderEdges() {
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      NETWORK.edges.forEach(e => {
+        const a = byId[e.source], b = byId[e.target];
+        if (!a || !b) return;
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', a.x); line.setAttribute('y1', a.y);
+        line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
+        line.setAttribute('stroke-width', 1 + (e.weight / maxW) * 3);
+        line.classList.add('edge');
+        line.dataset.source = e.source; line.dataset.target = e.target;
+        if (hovered && (hovered === e.source || hovered === e.target)) line.classList.add('active');
+        if (hovered && !(hovered === e.source || hovered === e.target)) line.style.opacity = '0.08';
+        g.appendChild(line);
+      });
+      return g;
+    }
+
+    function nodeFill(n) {
+      const r = n.platforms.includes('reddit'), y = n.platforms.includes('youtube');
+      if (n.isCenter) return '#2a4a8a';
+      if (r && y) return '#3a3420';
+      if (r) return '#1a2e24';
+      return '#222833';
+    }
+
+    function renderNodes() {
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      NETWORK.nodes.forEach(n => {
+        const grp = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        grp.classList.add('node');
+        if (n.isCenter) grp.classList.add('center');
+        if (hovered === n.id) grp.classList.add('active');
+        if (hovered && hovered !== n.id) grp.classList.add('dim');
+
+        const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        c.setAttribute('cx', n.x); c.setAttribute('cy', n.y); c.setAttribute('r', n.r);
+        c.setAttribute('fill', nodeFill(n));
+        grp.appendChild(c);
+
+        const label = n.id.length > 16 ? n.id.slice(0, 14) + '…' : n.id;
+        const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        t.setAttribute('x', n.x); t.setAttribute('y', n.y + n.r + 12); t.textContent = label;
+        grp.appendChild(t);
+
+        grp.addEventListener('mouseenter', () => { hovered = n.id; redraw(); updatePanel(n); });
+        grp.addEventListener('mouseleave', () => { hovered = null; redraw(); resetPanel(); });
+        g.appendChild(grp);
+      });
+      return g;
+    }
+
+    function redraw() {
+      svg.replaceChildren(renderEdges(), renderNodes());
+    }
+
+    function updatePanel(n) {
+      document.getElementById('kw-title').textContent = n.id;
+      document.getElementById('kw-heat').textContent = '热度加权 ' + fmtHeat(n.heat);
+      document.getElementById('kw-hint').style.display = 'none';
+      const pf = document.getElementById('kw-platforms');
+      pf.replaceChildren(...n.platforms.map(p => {
+        const s = document.createElement('span');
+        s.className = 'pill ' + p; s.textContent = p; return s;
+      }));
+      const tl = document.getElementById('kw-titles');
+      tl.replaceChildren(...n.titles.map(t => { const li = document.createElement('li'); li.textContent = t; return li; }));
+      const lk = document.getElementById('kw-links');
+      lk.replaceChildren(...n.urls.map(u => {
+        const a = document.createElement('a');
+        a.href = u; a.target = '_blank'; a.rel = 'noopener noreferrer';
+        a.textContent = u.replace('https://www.', '');
+        return a;
+      }));
+    }
+
+    function resetPanel() {
+      document.getElementById('kw-title').textContent = '悬停关键词';
+      document.getElementById('kw-heat').textContent = '';
+      document.getElementById('kw-platforms').replaceChildren();
+      document.getElementById('kw-titles').replaceChildren();
+      document.getElementById('kw-links').replaceChildren();
+      document.getElementById('kw-hint').style.display = 'block';
+    }
+
+    redraw();
+  </script>
+</body>
+</html>
