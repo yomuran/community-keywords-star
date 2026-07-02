@@ -48,7 +48,15 @@
     .pill { font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid var(--line); margin-right:6px; }
     .pill.reddit { color:var(--reddit); }
     .pill.youtube { color:var(--youtube); }
-    .links-wrap { flex:1 1 auto; overflow:auto; min-height:0; border-top:1px solid var(--line); padding-top:10px; }
+    .links-wrap {
+      flex:1 1 auto; overflow-y:auto; overflow-x:hidden;
+      min-height:420px; max-height:min(68vh, 720px);
+      border-top:1px solid var(--line); padding-top:10px; margin-top:8px;
+      scrollbar-gutter:stable;
+    }
+    .links-wrap::-webkit-scrollbar { width:10px; }
+    .links-wrap::-webkit-scrollbar-thumb { background:#3a4254; border-radius:8px; }
+    .links-foot { color:var(--muted); font-size:12px; margin-top:10px; padding-top:8px; border-top:1px dashed var(--line); }
     .links-head { font-size:13px; font-weight:600; margin:0 0 10px; }
     .link-item { margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid var(--line); }
     .link-item:last-child { border-bottom:none; }
@@ -69,7 +77,7 @@
       <span class="badge">65 共现边</span>
     </div>
     <h1>3D Scanning 社区 · 关键词关联星图</h1>
-    <p class="sub">点击节点锁定右侧详情与全部来源链接；悬停仅预览高亮。热度 = views + 2×comments；无 metrics 计 1，不编造。</p>
+    <p class="sub">先<strong>点击</strong>节点锁定右侧列表（例如 lidar 有 49 条链接）；锁定后在右侧<strong>向下滚动</strong>查看全部。悬停仅高亮预览。</p>
     <div class="layout">
       <div class="chart">
         <svg id="star" viewBox="0 0 800 560" aria-label="keyword star map"></svg>
@@ -85,11 +93,12 @@
           </div>
           <div id="kw-platforms"></div>
         </div>
-        <div class="links-wrap">
+        <div class="links-wrap" id="links-wrap">
           <div class="links-head" id="kw-links-head">相关链接</div>
           <div id="kw-links"></div>
+          <div class="links-foot" id="kw-links-foot"></div>
         </div>
-        <p class="hint" id="kw-hint">点击左侧节点锁定详情；锁定后可移开鼠标，在右侧滚动并打开全部真实链接。</p>
+        <p class="hint" id="kw-hint">点击左侧节点锁定详情；锁定后移开鼠标不会消失，在右侧滚动浏览全部链接。</p>
       </aside>
     </div>
   </div>
@@ -100,6 +109,17 @@
     const maxW = Math.max(...NETWORK.edges.map(e => e.weight));
     let hovered = null;
     let selected = null;
+    let panelNodeId = null;
+
+    function nodeLinks(n) {
+      if (Array.isArray(n.links) && n.links.length) return n.links;
+      if (Array.isArray(n.urls)) return n.urls.map(u => (typeof u === 'string' ? { url: u, title: '', platform: '' } : u));
+      return [];
+    }
+
+    function linkCount(n) {
+      return n.linkCount || nodeLinks(n).length;
+    }
 
     function fmtHeat(n) {
       if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
@@ -157,14 +177,22 @@
         t.setAttribute('x', n.x); t.setAttribute('y', n.y + n.r + 12); t.textContent = label;
         grp.appendChild(t);
 
-        grp.addEventListener('mouseenter', () => { hovered = n.id; redraw(); if (!selected) updatePanel(n, false); });
-        grp.addEventListener('mouseleave', () => { hovered = null; redraw(); if (!selected) resetPanel(); });
+        grp.addEventListener('mouseenter', () => {
+          hovered = n.id;
+          redraw();
+          if (!selected) showPanel(n, false);
+        });
+        grp.addEventListener('mouseleave', () => {
+          hovered = null;
+          redraw();
+        });
         grp.addEventListener('click', (ev) => {
           ev.preventDefault();
+          ev.stopPropagation();
           selected = n.id;
           hovered = null;
           redraw();
-          updatePanel(n, true);
+          showPanel(n, true);
         });
         g.appendChild(grp);
       });
@@ -173,11 +201,18 @@
 
     function redraw() { svg.replaceChildren(renderEdges(), renderNodes()); }
 
+    function showPanel(n, locked) {
+      panelNodeId = n.id;
+      updatePanel(n, locked);
+    }
+
     function updatePanel(n, locked) {
+      const links = nodeLinks(n);
+      const count = linkCount(n);
       document.getElementById('kw-title').textContent = n.id;
       document.getElementById('kw-meta').textContent =
-        '热度加权 ' + fmtHeat(n.heat) + ' · 共 ' + n.linkCount + ' 条真实链接';
-      document.getElementById('kw-hint').style.display = 'none';
+        '热度加权 ' + fmtHeat(n.heat) + ' · 共 ' + count + ' 条真实链接' + (locked ? '（已锁定）' : '（预览，点击锁定）');
+      document.getElementById('kw-hint').style.display = locked ? 'none' : 'block';
       document.getElementById('kw-actions').style.display = locked ? 'flex' : 'none';
 
       const pf = document.getElementById('kw-platforms');
@@ -188,9 +223,9 @@
         return s;
       }));
 
-      document.getElementById('kw-links-head').textContent = '相关链接 (' + n.linkCount + ')';
+      document.getElementById('kw-links-head').textContent = '相关链接 (' + count + ')';
       const lk = document.getElementById('kw-links');
-      lk.replaceChildren(...n.links.map(item => {
+      lk.replaceChildren(...links.map(item => {
         const box = document.createElement('div');
         box.className = 'link-item';
         const a = document.createElement('a');
@@ -198,25 +233,34 @@
         a.target = '_blank';
         a.rel = 'noopener noreferrer';
         a.textContent = item.url.replace('https://www.', '');
-        const title = document.createElement('div');
-        title.className = 'link-title';
-        title.textContent = item.title || '';
-        const plat = document.createElement('div');
-        plat.className = 'link-platform';
-        plat.textContent = item.platform || '';
         box.appendChild(a);
-        if (item.title) box.appendChild(title);
-        if (item.platform) box.appendChild(plat);
+        if (item.title) {
+          const title = document.createElement('div');
+          title.className = 'link-title';
+          title.textContent = item.title;
+          box.appendChild(title);
+        }
+        if (item.platform) {
+          const plat = document.createElement('div');
+          plat.className = 'link-platform';
+          plat.textContent = item.platform;
+          box.appendChild(plat);
+        }
         return box;
       }));
+      document.getElementById('kw-links-foot').textContent =
+        '已加载 ' + links.length + ' / ' + count + ' 条 · 在此区域向下滚动查看全部';
+      document.getElementById('links-wrap').scrollTop = 0;
     }
 
     function resetPanel() {
+      panelNodeId = null;
       document.getElementById('kw-title').textContent = '点击关键词';
       document.getElementById('kw-meta').textContent = '';
       document.getElementById('kw-platforms').replaceChildren();
       document.getElementById('kw-links-head').textContent = '相关链接';
       document.getElementById('kw-links').replaceChildren();
+      document.getElementById('kw-links-foot').textContent = '';
       document.getElementById('kw-actions').style.display = 'none';
       document.getElementById('kw-hint').style.display = 'block';
     }
