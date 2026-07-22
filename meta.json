@@ -1,9 +1,10 @@
 {
-  "lastRunId": "20260720T053236Z",
-  "lastFetchAt": "2026-07-20T05:32:36Z",
+  "lastRunId": "20260722T080700Z_kol_outreach",
+  "lastFetchAt": "2026-07-22T08:07:12Z",
   "rawCount": 2331,
   "nodeCount": 30,
   "edgeCount": 80,
   "sinceDate": "2026-07-01",
-  "schemaVersion": 2
+  "schemaVersion": 2,
+  "kolOutreach": true
 }
