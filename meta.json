@@ -1,20 +1,20 @@
 {
-  "lastRunId": "20260817T025252Z",
-  "lastFetchAt": "2026-08-17T02:52:52Z",
-  "rawCount": 2386,
+  "lastRunId": "20260824T025618Z",
+  "lastFetchAt": "2026-08-24T02:56:18Z",
+  "rawCount": 2389,
   "nodeCount": 30,
   "edgeCount": 80,
   "sinceDate": "2026-07-01",
   "schemaVersion": 2,
   "kolExpand": {
-    "run_id": "20260817T025252Z",
-    "hits": 259,
+    "run_id": "20260824T025618Z",
+    "hits": 258,
     "candidates": 103,
     "pool_total": 116,
-    "deltas": 81,
+    "deltas": 83,
     "new": 40,
     "accumulated": "/home/runner/work/social-video-research/social-video-research/community_keywords/data/accumulated/kol_candidates.tsv",
-    "delta_path": "/home/runner/work/social-video-research/social-video-research/community_keywords/data/runs/20260817T025252Z/kol_new_candidates.tsv",
-    "summary": "/home/runner/work/social-video-research/social-video-research/community_keywords/SUMMARY_kol_20260817T025252Z.md"
+    "delta_path": "/home/runner/work/social-video-research/social-video-research/community_keywords/data/runs/20260824T025618Z/kol_new_candidates.tsv",
+    "summary": "/home/runner/work/social-video-research/social-video-research/community_keywords/SUMMARY_kol_20260824T025618Z.md"
   }
 }
